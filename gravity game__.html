@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gravity Gets Angry</title>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #111;
+  color: white;
+  font-family: Arial, sans-serif;
+  touch-action: manipulation;
+}
+
+#ui {
+  position: absolute;
+  top: 10px;
+  width: 100%;
+  text-align: center;
+  z-index: 10;
+}
+
+#mood {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+canvas {
+  display: block;
+}
+
+#startScreen {
+  position: absolute;
+  inset: 0;
+  background: #111;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  text-align: center;
+  padding: 20px;
+}
+
+#startScreen button {
+  padding: 12px 26px;
+  font-size: 18px;
+  border: none;
+  border-radius: 6px;
+  background: #0f0;
+  color: black;
+}
+</style>
+</head>
+
+<body>
+
+<!-- START SCREEN -->
+<div id="startScreen">
+  <h1>Gravity Gets Angry 😈</h1>
+  <p>Tap to jump<br>
+     Gravity changes mood<br>
+     Avoid small poles<br>
+     Survive as long as you can</p>
+  <button onclick="startGame()">START</button>
+</div>
+
+<!-- GAME UI -->
+<div id="ui" style="display:none;">
+  <div id="mood">Gravity is Calm 😌</div>
+  Score: <span id="score">0</span> |
+  High: <span id="high">0</span>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+/* ---------- CANVAS ---------- */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+/* ---------- AUDIO ---------- */
+let audioCtx;
+function initAudio() {
+  if (!audioCtx)
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function beep(freq, dur) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g);
+  g.connect(audioCtx.destination);
+  o.frequency.value = freq;
+  g.gain.value = 0.15;
+  o.start();
+  o.stop(audioCtx.currentTime + dur);
+}
+
+/* ---------- PLAYER ---------- */
+const px = canvas.width / 2;
+const pr = 14;
+let py, pv;
+
+/* ---------- GAME ---------- */
+let gravity = 0.4;
+const impulse = -7;
+let score = 0;
+let high = localStorage.getItem("ggaHigh") || 0;
+document.getElementById("high").innerText = high;
+let gameOver = false;
+let started = false;
+
+/* ---------- GRAVITY MODES ---------- */
+const modes = [
+  { g: 0.4, text: "Gravity is Calm 😌" },
+  { g: 0.2, text: "Gravity is Sleepy 😴" },
+  { g: 0.7, text: "Gravity is Angry 😡" },
+  { g: -0.4, text: "Gravity is Flipped 😵" }
+];
+let modeTimer = 0;
+
+/* ---------- SMALL POLES ---------- */
+let poles = [];
+const poleW = 16;
+const poleH = 90;
+const speed = 1.6;
+
+function spawnPole() {
+  const type = Math.floor(Math.random() * 3);
+  let y;
+  if (type === 0) y = 0;
+  else if (type === 1) y = canvas.height / 2 - poleH / 2;
+  else y = canvas.height - poleH;
+  poles.push({ x: canvas.width, y });
+}
+
+/* ---------- START ---------- */
+function startGame() {
+  document.getElementById("startScreen").style.display = "none";
+  document.getElementById("ui").style.display = "block";
+  started = true;
+  resetGame();
+}
+
+/* ---------- RESET ---------- */
+function resetGame() {
+  py = canvas.height / 2;
+  pv = 0;
+  score = 0;
+  poles = [];
+  gameOver = false;
+  gravity = modes[0].g;
+  document.getElementById("mood").innerText = modes[0].text;
+  document.getElementById("score").innerText = score;
+  modeTimer = 0;
+}
+
+/* ---------- INPUT ---------- */
+function tap() {
+  if (!started) return;
+  initAudio();
+
+  if (gameOver) {
+    resetGame();
+    return;
+  }
+  pv = impulse;
+  beep(500, 0.08);
+}
+document.addEventListener("touchstart", tap, { passive: true });
+document.addEventListener("mousedown", tap);
+
+/* ---------- UPDATE ---------- */
+function update() {
+  if (!started || gameOver) return;
+
+  modeTimer++;
+  if (modeTimer > 240) {
+    const m = modes[Math.floor(Math.random() * modes.length)];
+    gravity = m.g;
+    document.getElementById("mood").innerText = m.text;
+    modeTimer = 0;
+  }
+
+  pv += gravity;
+  py += pv;
+
+  if (py < 0 || py > canvas.height) crash();
+
+  if (modeTimer % 60 === 0) {
+    score++;
+    document.getElementById("score").innerText = score;
+  }
+
+  if (poles.length === 0 || poles[poles.length - 1].x < canvas.width - 220)
+    spawnPole();
+
+  for (let p of poles) {
+    p.x -= speed;
+    if (
+      px + pr > p.x &&
+      px - pr < p.x + poleW &&
+      py + pr > p.y &&
+      py - pr < p.y + poleH
+    ) crash();
+  }
+
+  poles = poles.filter(p => p.x + poleW > 0);
+}
+
+/* ---------- CRASH ---------- */
+function crash() {
+  gameOver = true;
+  beep(200, 0.25);
+  if (score > high) {
+    high = score;
+    localStorage.setItem("ggaHigh", high);
+    document.getElementById("high").innerText = high;
+  }
+}
+
+/* ---------- DRAW ---------- */
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!started) return;
+
+  ctx.fillStyle = "yellow";
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#0f0";
+  for (let p of poles)
+    ctx.fillRect(p.x, p.y, poleW, poleH);
+
+  if (gameOver) {
+    ctx.fillStyle = "white";
+    ctx.font = "26px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Tap to Restart",
+      canvas.width / 2, canvas.height / 2);
+  }
+}
+
+/* ---------- LOOP ---------- */
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>

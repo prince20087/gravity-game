@@ -63,10 +63,16 @@ canvas {
 <!-- START SCREEN -->
 <div id="startScreen">
   <h1>Gravity Gets Angry 😈</h1>
-  <p>Tap to jump<br>
-     Gravity changes mood<br>
-     Avoid small poles<br>
-     Survive as long as you can</p>
+  <p>Tap / Click to jump. Survive as long as you can.</p>
+
+  <h3>Gravity Rules 🧠</h3>
+  <p>😌 <b>Calm</b> → Normal play</p>
+  <p>😡 <b>Angry</b> → Falls very fast (React quickly)</p>
+  <p>😴 <b>Sleepy</b> → Weak gravity (Tap LESS)</p>
+  <p>😲<b>Pulse</b> → "Gravity is Pulsing ⚡"</p>
+
+  <p style="opacity:0.7;">Every few taps, gravity changes mood.</p>
+
   <button onclick="startGame()">START</button>
 </div>
 
@@ -80,6 +86,10 @@ canvas {
 <canvas id="game"></canvas>
 
 <script>
+/* ---------- ZOOM LOCK ---------- */
+document.addEventListener("gesturestart", e => e.preventDefault());
+document.addEventListener("dblclick", e => e.preventDefault(), { passive:false });
+
 /* ---------- CANVAS ---------- */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -99,7 +109,7 @@ function beep(freq, dur) {
   o.connect(g);
   g.connect(audioCtx.destination);
   o.frequency.value = freq;
-  g.gain.value = 0.15;
+  g.gain.value = 0.12;
   o.start();
   o.stop(audioCtx.currentTime + dur);
 }
@@ -110,8 +120,8 @@ const pr = 14;
 let py, pv;
 
 /* ---------- GAME ---------- */
-let gravity = 0.4;
-const impulse = -7;
+let gravity = 0.35;        // slower gravity
+const impulse = -6.2;      // softer jump
 let score = 0;
 let high = localStorage.getItem("ggaHigh") || 0;
 document.getElementById("high").innerText = high;
@@ -120,12 +130,14 @@ let started = false;
 
 /* ---------- GRAVITY MODES ---------- */
 const modes = [
-  { g: 0.4, text: "Gravity is Calm 😌" },
-  { g: 0.2, text: "Gravity is Sleepy 😴" },
-  { g: 0.7, text: "Gravity is Angry 😡" },
-  { g: -0.4, text: "Gravity is Flipped 😵" }
+  { type: "calm", g: 0.35, text: "Gravity is Calm 😌" },
+  { type: "sleepy", g: 0.18, text: "Gravity is Sleepy 😴" },
+  { type: "angry", g: 0.65, text: "Gravity is Angry 😡" },
+  { type: "pulse", text: "Gravity is Pulsing ⚡" }
 ];
+
 let modeTimer = 0;
+let pulseTimer = 0;
 
 /* ---------- SMALL POLES ---------- */
 let poles = [];
@@ -161,6 +173,7 @@ function resetGame() {
   document.getElementById("mood").innerText = modes[0].text;
   document.getElementById("score").innerText = score;
   modeTimer = 0;
+  pulseTimer = 0;
 }
 
 /* ---------- INPUT ---------- */
@@ -173,7 +186,7 @@ function tap() {
     return;
   }
   pv = impulse;
-  beep(500, 0.08);
+  beep(480, 0.08);
 }
 document.addEventListener("touchstart", tap, { passive: true });
 document.addEventListener("mousedown", tap);
@@ -183,11 +196,22 @@ function update() {
   if (!started || gameOver) return;
 
   modeTimer++;
-  if (modeTimer > 240) {
+  pulseTimer++;
+
+  if (modeTimer > 300) {
     const m = modes[Math.floor(Math.random() * modes.length)];
-    gravity = m.g;
+    if (m.type === "pulse") {
+      gravity = (pulseTimer % 120 < 60) ? 0.22 : 0.7;
+    } else {
+      gravity = m.g;
+    }
     document.getElementById("mood").innerText = m.text;
     modeTimer = 0;
+  }
+
+  // pulse gravity behavior
+  if (document.getElementById("mood").innerText.includes("Pulsing")) {
+    gravity = (pulseTimer % 120 < 60) ? 0.22 : 0.7;
   }
 
   pv += gravity;
@@ -195,7 +219,7 @@ function update() {
 
   if (py < 0 || py > canvas.height) crash();
 
-  if (modeTimer % 60 === 0) {
+   if (modeTimer % 80 === 0) {
     score++;
     document.getElementById("score").innerText = score;
   }
@@ -262,3 +286,5 @@ loop();
 
 </body>
 </html>
+
+
